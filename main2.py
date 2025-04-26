@@ -23,10 +23,11 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Temporarily try this for testing
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]  # Add this line
 )
 
 try:
@@ -130,7 +131,15 @@ async def match_categories(file: UploadFile = File(...), customerCategories: Lis
         logger.error(f"Processing error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("main2:app", host="0.0.0.0", port=port, log_level="debug")
+    uvicorn.run(
+        "main2:app",
+        host="0.0.0.0",  # Crucial for external access
+        port=port,
+        reload=False  # Disable reload in production
+    )
