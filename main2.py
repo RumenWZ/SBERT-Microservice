@@ -16,16 +16,17 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 
 origins = [
-    "http://localhost:4200",  # Your local Angular app
-    "https://sbert-microservice.onrender.com",  # Your deployed Render app
+    "http://localhost:4200",
+    "https://sbert-microservice.onrender.com",
+    "http://localhost:8000",  # Add if testing locally
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # Allow requests from both origins
+    allow_origins=["*"],  # Temporarily try this for testing
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 try:
