@@ -19,11 +19,11 @@ app = FastAPI()
 # CORS Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for now
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all methods
-    allow_headers=["*"],  # Allow all headers
-    expose_headers=["*"]  # Expose all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # Load ML model
@@ -34,6 +34,7 @@ try:
 except Exception as e:
     logger.error(f"Model loading failed: {str(e)}")
     raise
+
 
 # Response Models
 class MatchResult(BaseModel):
@@ -46,6 +47,7 @@ class MatchResult(BaseModel):
         allow_population_by_field_name = True
         orm_mode = True
 
+
 class CustomerMatch(BaseModel):
     customer_category: str = Field(..., alias="customer_category")
     matches: List[MatchResult]
@@ -54,6 +56,7 @@ class CustomerMatch(BaseModel):
         allow_population_by_field_name = True
         orm_mode = True
 
+
 class FullMatchResponse(BaseModel):
     matches: List[CustomerMatch]
 
@@ -61,7 +64,8 @@ class FullMatchResponse(BaseModel):
         allow_population_by_field_name = True
         orm_mode = True
 
-# Explicit OPTIONS handler for CORS preflight
+
+# Explicit OPTIONS handler
 @app.options("/upload_and_match")
 async def options_upload_match():
     return Response(
@@ -73,67 +77,68 @@ async def options_upload_match():
         }
     )
 
+
 # Main endpoint
 @app.post("/upload_and_match", response_model=FullMatchResponse)
 async def match_categories(file: UploadFile = File(...), customerCategories: List[str] = None, topN: int = 5):
     try:
-        logger.debug("Received request for category matching...")
+        logger.debug("Processing request...")
 
         if not customerCategories or not file:
-            raise HTTPException(status_code=400, detail="Missing file or customer categories")
+            raise HTTPException(status_code=400, detail="Missing required parameters")
 
+        # Process file
         file_content = await file.read()
         df = pd.read_csv(io.BytesIO(file_content), encoding="ISO-8859-1")
 
-        if df.empty:
-            raise ValueError("CSV file is empty")
-
+        # Generate embeddings
         category_paths = df['path'].astype(str).tolist()
-        category_ids = df['id'].astype(int).tolist()
-
-        logger.info("Generating embeddings for categories...")
         category_embeddings = model.encode(category_paths, convert_to_tensor=True)
 
+        # Match categories
         results = []
         for raw_category in customerCategories:
-            clean_category = " > ".join(part.strip() for part in raw_category.split(">") if part.strip())
+            clean_category = " > ".join(part.strip() for part in raw_category.split(">"))
             input_embedding = model.encode(clean_category, convert_to_tensor=True)
             cos_scores = util.pytorch_cos_sim(input_embedding, category_embeddings)[0]
             top_results = cos_scores.topk(min(topN, len(category_paths)))
 
-            matched = []
-            for score, idx in zip(top_results.values, top_results.indices):
-                matched.append(MatchResult(
+            matches = [
+                MatchResult(
                     match=category_paths[idx],
-                    category_id=int(category_ids[idx]),
+                    category_id=int(df['id'].iloc[idx]),
                     score=round(float(score), 4),
                     confidence=round(float(score) * 100, 2)
-                ))
+                )
+                for score, idx in zip(top_results.values, top_results.indices)
+            ]
 
             results.append(CustomerMatch(
                 customer_category=clean_category,
-                matches=matched
+                matches=matches
             ))
 
         return FullMatchResponse(matches=results)
 
     except Exception as e:
-        logger.error(f"Error processing request: {str(e)}", exc_info=True)
+        logger.error(f"Error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-# Health check endpoint
+
+# Health endpoint
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "SBERT Category Matcher"}
+    return {"status": "OK", "service": "SBERT Matcher"}
+
 
 # Startup configuration
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))  # Render default port
+    port = int(os.environ.get("PORT", 10000))  # Render default
     uvicorn.run(
-        "main2:app",
-        host="0.0.0.0",  # Must bind to 0.0.0.0 for Render
+        app,  # Key change: Use the app directly
+        host="0.0.0.0",
         port=port,
-        reload=False,  # Disable auto-reload in production
-        workers=1,  # Single worker for Render free tier
-        timeout_keep_alive=60  # Keep connections alive longer
+        reload=False,
+        workers=1,
+        timeout_keep_alive=60
     )
