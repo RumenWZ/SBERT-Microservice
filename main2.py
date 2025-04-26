@@ -65,19 +65,6 @@ class FullMatchResponse(BaseModel):
         orm_mode = True
 
 
-# Explicit OPTIONS handler
-@app.options("/upload_and_match")
-async def options_upload_match():
-    return Response(
-        status_code=200,
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "POST, OPTIONS",
-            "Access-Control-Allow-Headers": "*"
-        }
-    )
-
-
 # Main endpoint
 @app.post("/upload_and_match", response_model=FullMatchResponse)
 async def match_categories(file: UploadFile = File(...), customerCategories: List[str] = None, topN: int = 5):
