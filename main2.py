@@ -69,7 +69,7 @@ class FullMatchResponse(BaseModel):
 @app.post("/upload_and_match", response_model=FullMatchResponse)
 async def match_categories(file: UploadFile = File(...), customerCategories: List[str] = None, topN: int = 5):
     try:
-        logger.debug("Processing request...")
+        logger.debug("Processing request, standby...")
 
         if not customerCategories or not file:
             raise HTTPException(status_code=400, detail="Missing required parameters")
